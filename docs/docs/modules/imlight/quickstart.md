@@ -41,7 +41,7 @@ It's been observed that in some game revisions, NPC spell decks are shipped with
 ## Prerequisites
 
 **Development Environment**
-- **.NET 9.0 SDK** - Required for building Imlight and Imcodec
+- **.NET 10.0 SDK** - Required for building Imlight and Imcodec
 - **Git** - For cloning repositories and managing submodules
 
 **External Tools**

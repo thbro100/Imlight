@@ -1,0 +1,25 @@
+# Repository metadata and CI configuration
+.git/
+.github/
+.vscode/
+.agents/
+
+# Local build and IDE output
+**/bin/
+**/obj/
+**/artifacts/
+.vs/
+
+# Game-derived source-generator inputs must never enter the image build context
+**/GeneratorInput/**
+**/*Messages*.xml
+**/*.wad
+**/*.pfx
+**/*.p12
+
+# Local runtime state and user data
+**/logs/
+**/cache/
+**/spiraldb-cache/
+**/ImlightEmbeddedDatabase/
+**/playerdb-dev-*.pfx

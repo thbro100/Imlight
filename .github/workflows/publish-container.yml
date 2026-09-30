@@ -1,0 +1,79 @@
+name: Publish container
+
+on:
+  push:
+    branches:
+      - '**'
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: container-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Read application version
+        id: version
+        shell: bash
+        run: |
+          version="$(python3 -c 'import xml.etree.ElementTree as ET; root = ET.parse("src/Imlight.Director/Imlight.Director.csproj").getroot(); print(root.findtext("./PropertyGroup/Version") or "")')"
+          if [[ -z "${version}" ]]; then
+            echo "No Version property found in Imlight.Director.csproj" >&2
+            exit 1
+          fi
+          echo "value=${version}" >> "${GITHUB_OUTPUT}"
+
+      - name: Prepare image tag
+        id: image
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          repository="${GITHUB_REPOSITORY,,}"
+          branch="${GITHUB_REF_NAME,,}"
+          branch="${branch//\//-}"
+          branch="$(printf '%s' "${branch}" | sed -E 's/[^a-z0-9_.-]+/-/g; s/^[.-]+//; s/[.-]+$//')"
+          if [[ ! "${VERSION}" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]*$ ]]; then
+            echo "Version '${VERSION}' is not valid in a container tag" >&2
+            exit 1
+          fi
+          max_branch_length=$((128 - ${#VERSION} - 1))
+          if [[ -z "${branch}" ]] || (( max_branch_length < 1 )); then
+            echo "Version or branch cannot be represented as a valid container tag" >&2
+            exit 1
+          fi
+          branch="${branch:0:max_branch_length}"
+          echo "name=ghcr.io/${repository}" >> "${GITHUB_OUTPUT}"
+          echo "tag=${VERSION}-${branch}" >> "${GITHUB_OUTPUT}"
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.image.outputs.name }}:${{ steps.image.outputs.tag }}
+          build-args: |
+            IMLIGHT_SOURCE_REPOSITORY=https://github.com/${{ github.repository }}.git
+            IMLIGHT_SOURCE_REVISION=${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.version.outputs.value }}
